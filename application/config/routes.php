@@ -59,3 +59,10 @@ $route['auth/login'] = 'auth/login';
 $route['auth/refresh'] = 'auth/refresh';
 $route['auth/logout'] = 'auth/logout';
 $route['auth/verify'] = 'auth/verify';
+
+// Wallet Routes (JWT protected)
+$route['wallet/create'] = 'wallet/create';
+$route['wallet/list'] = 'wallet/list';
+$route['wallet/get/(:any)'] = 'wallet/get/$1';
+$route['wallet/update/(:any)'] = 'wallet/update/$1';
+$route['wallet/delete/(:any)'] = 'wallet/delete/$1';

@@ -11,10 +11,85 @@ class Auth extends CI_Controller {
     }
 
     /**
+     * Test CORS endpoint
+     * GET /auth/test
+     */
+    public function test() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        header('Access-Control-Allow-Credentials: true');
+        
+        // Handle preflight OPTIONS request
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(200);
+            exit();
+        }
+        
+        header('Content-Type: application/json');
+        echo json_encode(array(
+            'status' => 'success',
+            'message' => 'CORS is working!',
+            'timestamp' => date('Y-m-d H:i:s'),
+            'method' => $_SERVER['REQUEST_METHOD']
+        ));
+    }
+
+    /**
+     * Simple login test without JWT
+     * POST /auth/test_login
+     */
+    public function test_login() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        header('Access-Control-Allow-Credentials: true');
+        
+        // Handle preflight OPTIONS request
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(200);
+            exit();
+        }
+        
+        header('Content-Type: application/json');
+        
+        // Get JSON input data
+        $input = json_decode($this->input->raw_input_stream, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            echo json_encode(array(
+                'status' => 'error',
+                'message' => 'Invalid JSON format'
+            ));
+            return;
+        }
+        
+        $phone_number = isset($input['phone_number']) ? $input['phone_number'] : '';
+        $password = isset($input['password']) ? $input['password'] : '';
+        
+        echo json_encode(array(
+            'status' => 'success',
+            'message' => 'Test login received',
+            'data' => array(
+                'phone_number' => $phone_number,
+                'password_length' => strlen($password),
+                'timestamp' => date('Y-m-d H:i:s')
+            )
+        ));
+    }
+
+    /**
      * User Registration API Endpoint
      * POST /auth/register
      */
     public function register() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        
         // Set JSON header
         header('Content-Type: application/json');
         
@@ -59,8 +134,8 @@ class Auth extends CI_Controller {
             return;
         }
 
-        // Validate phone number format (allows country codes)
-        if (!preg_match('/^\+?[0-9]{10,15}$/', $phone_number)) {
+        // Validate phone number format (basic validation)
+        if (!preg_match('/^[0-9]{10,15}$/', $phone_number)) {
             $this->output
                 ->set_status_header(400)
                 ->set_output(json_encode(array(
@@ -152,6 +227,18 @@ class Auth extends CI_Controller {
      * POST /auth/login
      */
     public function login() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        header('Access-Control-Allow-Credentials: true');
+        
+        // Handle preflight OPTIONS request
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(200);
+            exit();
+        }
+        
         // Set JSON header
         header('Content-Type: application/json');
         
@@ -256,6 +343,11 @@ class Auth extends CI_Controller {
      * POST /auth/refresh
      */
     public function refresh() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        
         // Set JSON header
         header('Content-Type: application/json');
         
@@ -346,6 +438,11 @@ class Auth extends CI_Controller {
      * POST /auth/logout
      */
     public function logout() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        
         // Set JSON header
         header('Content-Type: application/json');
         
@@ -405,6 +502,11 @@ class Auth extends CI_Controller {
      * POST /auth/verify
      */
     public function verify() {
+        // Set CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type,Authorization,X-Requested-With');
+        
         // Set JSON header
         header('Content-Type: application/json');
         
