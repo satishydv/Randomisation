@@ -6,6 +6,7 @@ class Auth extends CI_Controller {
     public function __construct() {
         parent::__construct();
         $this->load->model('User_model');
+        $this->load->model('Wallet_model');
         $this->load->library('form_validation');
         $this->load->library('jwt');
     }
@@ -125,18 +126,41 @@ class Auth extends CI_Controller {
         $result = $this->User_model->create_user($user_data);
 
         if ($result['success']) {
-            $this->output
-                ->set_status_header(201)
-                ->set_output(json_encode(array(
-                    'status' => 'success',
-                    'message' => 'User registered successfully',
-                    'data' => array(
-                        'user_id' => $result['user_id'],
-                        'username' => $result['username'],
-                        'phone_number' => $phone_number,
-                        'email' => $email
-                    )
-                )));
+            // Create welcome bonus wallet for new user
+            $wallet_created = $this->Wallet_model->create_welcome_bonus($result['user_id']);
+            
+            if ($wallet_created) {
+                $this->output
+                    ->set_status_header(201)
+                    ->set_output(json_encode(array(
+                        'status' => 'success',
+                        'message' => 'User registered successfully with $28 welcome bonus',
+                        'data' => array(
+                            'user_id' => $result['user_id'],
+                            'username' => $result['username'],
+                            'phone_number' => $phone_number,
+                            'email' => $email,
+                            'welcome_bonus' => 28.00,
+                            'wallet_balance' => 28.00
+                        )
+                    )));
+            } else {
+                // User created but wallet creation failed
+                $this->output
+                    ->set_status_header(201)
+                    ->set_output(json_encode(array(
+                        'status' => 'success',
+                        'message' => 'User registered successfully, but welcome bonus failed. Please contact support.',
+                        'data' => array(
+                            'user_id' => $result['user_id'],
+                            'username' => $result['username'],
+                            'phone_number' => $phone_number,
+                            'email' => $email,
+                            'welcome_bonus' => 0.00,
+                            'wallet_balance' => 0.00
+                        )
+                    )));
+            }
         } else {
             $this->output
                 ->set_status_header(500)
@@ -448,6 +472,72 @@ class Auth extends CI_Controller {
                     'username' => $payload['username'],
                     'phone_number' => $payload['phone_number'],
                     'email' => $payload['email']
+                )
+            )));
+    }
+
+    /**
+     * Get User Profile API Endpoint
+     * POST /auth/profile
+     */
+    public function profile() {
+        // Set JSON header
+        header('Content-Type: application/json');
+        
+        // Get Authorization header
+        $headers = getallheaders();
+        $auth_header = isset($headers['Authorization']) ? $headers['Authorization'] : '';
+        
+        if (empty($auth_header) || !preg_match('/Bearer\s(\S+)/', $auth_header, $matches)) {
+            $this->output
+                ->set_status_header(401)
+                ->set_output(json_encode(array(
+                    'status' => 'error',
+                    'message' => 'Authorization header missing or invalid'
+                )));
+            return;
+        }
+
+        $access_token = $matches[1];
+
+        // Validate access token
+        $payload = $this->jwt->validate_token($access_token);
+        
+        if (!$payload) {
+            $this->output
+                ->set_status_header(401)
+                ->set_output(json_encode(array(
+                    'status' => 'error',
+                    'message' => 'Invalid or expired access token'
+                )));
+            return;
+        }
+
+        // Get user data from database
+        $user = $this->User_model->get_user_by_id($payload['user_id']);
+        
+        if (!$user) {
+            $this->output
+                ->set_status_header(404)
+                ->set_output(json_encode(array(
+                    'status' => 'error',
+                    'message' => 'User not found'
+                )));
+            return;
+        }
+
+        // Return user profile data
+        $this->output
+            ->set_status_header(200)
+            ->set_output(json_encode(array(
+                'status' => 'success',
+                'message' => 'Profile retrieved successfully',
+                'data' => array(
+                    'user_id' => $user['user_id'],
+                    'username' => $user['username'],
+                    'phone_number' => $user['phone_number'],
+                    'email' => $user['email'],
+                    'last_login' => $user['last_login']
                 )
             )));
     }

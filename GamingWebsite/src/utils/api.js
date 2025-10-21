@@ -87,6 +87,77 @@ export const authAPI = {
   },
 };
 
+// Wallet API functions
+export const walletAPI = {
+  // Get wallet balance
+  getBalance: async () => {
+    return apiRequest('/wallet/balance', {
+      method: 'GET',
+    });
+  },
+
+  // Get transaction history
+  getTransactions: async (limit = 50, offset = 0, type = null) => {
+    const params = new URLSearchParams({ limit, offset });
+    if (type) params.append('type', type);
+    return apiRequest(`/wallet/transactions?${params}`, {
+      method: 'GET',
+    });
+  },
+
+  // Process deposit
+  deposit: async (amount, description = 'Wallet Deposit via UPI', referenceId = null) => {
+    return apiRequest('/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify({
+        amount,
+        description,
+        reference_id: referenceId,
+      }),
+    });
+  },
+
+  // Create wallet entry
+  createWallet: async (walletData) => {
+    return apiRequest('/wallet/create', {
+      method: 'POST',
+      body: JSON.stringify(walletData),
+    });
+  },
+
+  // Get wallet by order number
+  getWallet: async (orderNumber) => {
+    return apiRequest(`/wallet/get/${orderNumber}`, {
+      method: 'GET',
+    });
+  },
+
+  // Update wallet
+  updateWallet: async (orderNumber, updateData) => {
+    return apiRequest(`/wallet/update/${orderNumber}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  },
+
+  // Delete wallet entry
+  deleteWallet: async (orderNumber) => {
+    return apiRequest(`/wallet/delete/${orderNumber}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// User API functions
+export const userAPI = {
+  // Get current user profile
+  getProfile: async () => {
+    return apiRequest('/auth/profile', {
+      method: 'POST',
+    });
+  },
+};
+
 // Token management utilities
 export const tokenManager = {
   // Store tokens in localStorage

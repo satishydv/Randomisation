@@ -1,5 +1,5 @@
 // Depositepage.jsx
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import DHeader from "./DHeader"; // top header
 import Moneysection from "./Moneysection"; // wallet/promo info
 import ChannelSelection from "./ChannelSelection"; // deposit method select
@@ -12,6 +12,12 @@ const Depositepage = () => {
   // 💡 State for selected channel & amount
   const [selectedChannelName, setSelectedChannelName] = useState("UPI-QRpay");
   const [selectedAmount, setSelectedAmount] = useState(null);
+  const [refreshBalance, setRefreshBalance] = useState(0);
+
+  // Callback to trigger balance refresh
+  const handleBalanceRefresh = useCallback(() => {
+    setRefreshBalance(prev => prev + 1);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -19,7 +25,7 @@ const Depositepage = () => {
       <DHeader />
 
       {/* 🔸 Wallet / Promo Section */}
-      <Moneysection />
+      <Moneysection refreshTrigger={refreshBalance} />
 
       {/* 🔸 Main Deposit Area */}
       <div className="max-w-3xl mx-auto px-4 space-y-6">
@@ -47,6 +53,7 @@ const Depositepage = () => {
         selectedMethod={selectedChannelName}
         selectedAmount={selectedAmount}
         currencySymbol="₹"
+        onDepositSuccess={handleBalanceRefresh}
       />
     </div>
   );

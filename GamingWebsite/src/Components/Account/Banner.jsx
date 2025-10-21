@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import gsap from "gsap";
+import { walletAPI, userAPI } from "../../utils/api";
 
 const walletItems = [
   { name: "ARWallet", src: "/Accounticon/wallet.png", alt: "AR Wallet Icon", link: "" },
@@ -8,15 +9,86 @@ const walletItems = [
   { name: "VIP", src: "/Accounticon/vip-card.png", alt: "VIP Icon", link: "" },
 ];
 
-export default function AccountHeader({ balance = 28.00 }) {
+export default function AccountHeader({ refreshTrigger = 0 }) {
   const [showMsg, setShowMsg] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userData, setUserData] = useState({
+    username: 'MEMBERNNGBKUGJ',
+    user_id: '1934924',
+    last_login: '2025-10-16 09:33:39'
+  });
+  const [userLoading, setUserLoading] = useState(true);
+  const [userError, setUserError] = useState(null);
   const msgRef = useRef(null);
-  const uid = "19349024";
+
+  // Fetch balance and user data on component mount and when refreshTrigger changes
+  useEffect(() => {
+    fetchBalance();
+    fetchUserData();
+  }, [refreshTrigger]);
+
+  const fetchBalance = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching balance in Banner...');
+      const result = await walletAPI.getBalance();
+      console.log('Banner Balance API result:', result);
+      
+      if (result.success && result.data.status === 'success') {
+        console.log('Banner Balance fetched successfully:', result.data.data.balance);
+        setBalance(result.data.data.balance);
+      } else {
+        console.error('Banner API Error:', result.data);
+        setError('Failed to fetch balance');
+        setBalance(0);
+      }
+    } catch (err) {
+      console.error('Banner Error fetching balance:', err);
+      setError('Error fetching balance');
+      setBalance(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserData = async () => {
+    try {
+      setUserLoading(true);
+      setUserError(null);
+      
+      console.log('Fetching user data in Banner...');
+      const result = await userAPI.getProfile();
+      console.log('User Profile API result:', result);
+      
+      if (result.success && result.data.status === 'success') {
+        console.log('User data fetched successfully:', result.data.data);
+        setUserData({
+          username: result.data.data.username,
+          user_id: result.data.data.user_id,
+          last_login: result.data.data.last_login
+        });
+      } else {
+        console.error('User API Error:', result.data);
+        setUserError('Failed to fetch user data');
+        // Keep default values on error
+      }
+    } catch (err) {
+      console.error('Banner Error fetching user data:', err);
+      setUserError('Error fetching user data');
+      // Keep default values on error
+    } finally {
+      setUserLoading(false);
+    }
+  };
 
   // कॉपी फंक्शन
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(uid);
+      await navigator.clipboard.writeText(userData.user_id);
       setShowMsg(true);
       setTimeout(() => setShowMsg(false), 500);
     } catch (err) {
@@ -45,7 +117,9 @@ export default function AccountHeader({ balance = 28.00 }) {
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold leading-none">MEMBERNNGBKUGJ</h3>
+              <h3 className="text-lg font-semibold leading-none">
+                {userLoading ? 'Loading...' : userError ? 'Error' : userData.username}
+              </h3>
               <img className="h-auto w-16" src="/Accountimg/Vip.webp" alt="" />
             </div>
             <div
@@ -54,12 +128,16 @@ export default function AccountHeader({ balance = 28.00 }) {
             >
               <span className="font-medium pr-2">UID</span>
               <span className="text-white pr-2">|</span>
-              <span className="pr-1 select-none">1934924</span>
+              <span className="pr-1 select-none">
+                {userLoading ? 'Loading...' : userError ? 'Error' : userData.user_id}
+              </span>
               {/* <RiFileCopyLine className="inline text-sm" /> */}
               <i className="ri-file-copy-line text-sm"></i>
             </div>
             <div className="mt-2 text-sm text-white">
-              Last login: <span className="text-white">2025-10-16 09:33:39</span>
+              Last login: <span className="text-white">
+                {userLoading ? 'Loading...' : userError ? 'Error' : userData.last_login}
+              </span>
             </div>
           </div>
         </div>
@@ -71,7 +149,13 @@ export default function AccountHeader({ balance = 28.00 }) {
             <div className="flex justify-between mb-4">
               <div>
                 <h3 className="text-gray-400 text-sm font-medium">Total Balance</h3>
-                <p className="text-white text-2xl font-bold mt-1">${balance.toFixed(2)}</p>
+                {loading ? (
+                  <p className="text-gray-400 text-lg mt-1">Loading...</p>
+                ) : error ? (
+                  <p className="text-red-400 text-lg mt-1">Error</p>
+                ) : (
+                  <p className="text-white text-2xl font-bold mt-1">${balance.toFixed(2)}</p>
+                )}
               </div>
               <button className="mt-2 bg-gradient-to-r from-[#f2dd9b] to-[#c4933f] text-white text-md font-semibold px-7 py-1.5 rounded-full hover:opacity-90 transition">
                 Enter Wallet

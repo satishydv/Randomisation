@@ -6,6 +6,7 @@ class Wallet extends CI_Controller {
 	public function __construct() {
 		parent::__construct();
 		$this->load->model('Wallet_model');
+		$this->load->model('Transaction_model');
 		$this->load->library('jwt');
 	}
 
@@ -152,6 +153,170 @@ class Wallet extends CI_Controller {
 			$this->output->set_status_header(200)->set_output(json_encode(array('status' => 'success', 'message' => 'Deleted successfully')));
 		} else {
 			$this->output->set_status_header(500)->set_output(json_encode(array('status' => 'error', 'message' => 'Delete failed')));
+		}
+	}
+
+	public function balance() {
+		header('Content-Type: application/json');
+		$user = $this->get_auth_user();
+		if (!$user) {
+			$this->output->set_status_header(401)->set_output(json_encode(array('status' => 'error', 'message' => 'Unauthorized')));
+			return;
+		}
+		
+		$balance = $this->Wallet_model->get_balance($user['user_id']);
+		$has_wallet = $this->Wallet_model->user_has_wallet($user['user_id']);
+		
+		$this->output->set_status_header(200)->set_output(json_encode(array(
+			'status' => 'success',
+			'data' => array(
+				'user_id' => $user['user_id'],
+				'balance' => (float)$balance,
+				'has_wallet' => $has_wallet,
+				'currency' => 'USD'
+			)
+		)));
+	}
+
+	public function transactions() {
+		header('Content-Type: application/json');
+		$user = $this->get_auth_user();
+		if (!$user) {
+			$this->output->set_status_header(401)->set_output(json_encode(array('status' => 'error', 'message' => 'Unauthorized')));
+			return;
+		}
+		
+		$limit = (int)$this->input->get('limit') ?: 50;
+		$offset = (int)$this->input->get('offset') ?: 0;
+		$transaction_type = $this->input->get('type'); // CREDIT or DEBIT
+		
+		if ($transaction_type && in_array($transaction_type, array('CREDIT', 'DEBIT'))) {
+			$transactions = $this->Transaction_model->get_by_user_and_type($user['user_id'], $transaction_type, $limit, $offset);
+		} else {
+			$transactions = $this->Transaction_model->get_by_user($user['user_id'], $limit, $offset);
+		}
+		
+		$this->output->set_status_header(200)->set_output(json_encode(array(
+			'status' => 'success',
+			'data' => $transactions,
+			'pagination' => array(
+				'limit' => $limit,
+				'offset' => $offset,
+				'total_transactions' => $this->Transaction_model->get_transaction_count($user['user_id'])
+			)
+		)));
+	}
+
+	public function deposit() {
+		header('Content-Type: application/json');
+		$user = $this->get_auth_user();
+		if (!$user) {
+			$this->output->set_status_header(401)->set_output(json_encode(array('status' => 'error', 'message' => 'Unauthorized')));
+			return;
+		}
+
+		// Check if request method is POST
+		if ($this->input->method() !== 'post') {
+			$this->output->set_status_header(405)->set_output(json_encode(array('status' => 'error', 'message' => 'Method not allowed. Use POST.')));
+			return;
+		}
+
+		$input = $this->json_input();
+		if ($input === null) {
+			$this->output->set_status_header(400)->set_output(json_encode(array('status' => 'error', 'message' => 'Invalid JSON')));
+			return;
+		}
+
+		// Validate required fields
+		$amount = isset($input['amount']) ? (float)$input['amount'] : 0;
+		$description = isset($input['description']) ? trim($input['description']) : 'Wallet Deposit via UPI';
+		$reference_id = isset($input['reference_id']) ? trim($input['reference_id']) : null;
+
+		if ($amount <= 0) {
+			$this->output->set_status_header(400)->set_output(json_encode(array('status' => 'error', 'message' => 'Amount must be greater than 0')));
+			return;
+		}
+
+		// Get current balance
+		$current_balance = $this->Wallet_model->get_balance($user['user_id']);
+		$new_balance = $current_balance + $amount;
+
+		// Start database transaction
+		$this->db->trans_start();
+
+		try {
+			// Create transaction record
+			$transaction_data = array(
+				'user_id' => $user['user_id'],
+				'transaction_type' => 'CREDIT',
+				'amount' => $amount,
+				'balance_before' => $current_balance,
+				'balance_after' => $new_balance,
+				'description' => $description,
+				'reference_id' => $reference_id,
+				'mode_of_payment' => 'UPI',
+				'status' => 'completed'
+			);
+
+			$transaction_created = $this->Transaction_model->create($transaction_data);
+
+			if (!$transaction_created) {
+				throw new Exception('Failed to create transaction record');
+			}
+
+			// Update wallet balance
+			if ($this->Wallet_model->user_has_wallet($user['user_id'])) {
+				// Update existing wallet
+				$wallet_updated = $this->Wallet_model->update_by_user_id($user['user_id'], array('amount' => $new_balance));
+			} else {
+				// Create new wallet entry
+				$wallet_data = array(
+					'user_id' => $user['user_id'],
+					'amount' => $new_balance,
+					'mode_of_payment' => 'UPI',
+					'transaction_id' => $reference_id,
+					'status' => 'active',
+					'receipt_path' => null,
+					'order_number' => 'DEPOSIT' . date('YmdHis') . substr($user['user_id'], -4)
+				);
+				$wallet_updated = $this->Wallet_model->create($wallet_data);
+			}
+
+			if (!$wallet_updated) {
+				throw new Exception('Failed to update wallet balance');
+			}
+
+			// Complete database transaction
+			$this->db->trans_complete();
+
+			if ($this->db->trans_status() === FALSE) {
+				throw new Exception('Database transaction failed');
+			}
+
+			// Return success response
+			$this->output->set_status_header(200)->set_output(json_encode(array(
+				'status' => 'success',
+				'message' => 'Deposit successful',
+				'data' => array(
+					'user_id' => $user['user_id'],
+					'amount_deposited' => $amount,
+					'balance_before' => $current_balance,
+					'balance_after' => $new_balance,
+					'transaction_type' => 'CREDIT',
+					'mode_of_payment' => 'UPI',
+					'description' => $description,
+					'reference_id' => $reference_id
+				)
+			)));
+
+		} catch (Exception $e) {
+			// Rollback database transaction
+			$this->db->trans_rollback();
+			
+			$this->output->set_status_header(500)->set_output(json_encode(array(
+				'status' => 'error',
+				'message' => 'Deposit failed: ' . $e->getMessage()
+			)));
 		}
 	}
 }

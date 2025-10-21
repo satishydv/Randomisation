@@ -1,21 +1,56 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { walletAPI } from "../../../utils/api";
 
-const Moneysection = () => {
+const Moneysection = ({ refreshTrigger = 0 }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleRefresh = () => {
+  // Fetch balance on component mount and when refreshTrigger changes
+  useEffect(() => {
+    fetchBalance();
+  }, [refreshTrigger]);
+
+  const fetchBalance = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const result = await walletAPI.getBalance();
+      
+      if (result.success && result.data.status === 'success') {
+        setBalance(result.data.data.balance);
+      } else {
+        setError('Failed to fetch balance');
+        setBalance(0);
+      }
+    } catch (err) {
+      console.error('Error fetching balance:', err);
+      setError('Error fetching balance');
+      setBalance(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
     // Start refresh animation
     setRefreshing(true);
 
-    // After short delay, show popup
-    setTimeout(() => {
-      setRefreshing(false);
+    try {
+      // Fetch fresh balance
+      await fetchBalance();
+      
+      // Show success popup
       setShowPopup(true);
-
-      // Hide popup after 1.5 sec
       setTimeout(() => setShowPopup(false), 1500);
-    }, 1000);
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
@@ -42,7 +77,13 @@ const Moneysection = () => {
                   refreshing ? "opacity-0" : "opacity-100"
                 }`}
               >
-                $ 28.00
+                {loading ? (
+                  <span className="text-lg">Loading...</span>
+                ) : error ? (
+                  <span className="text-lg text-red-500">Error</span>
+                ) : (
+                  `$ ${balance.toFixed(2)}`
+                )}
               </p>
 
               <img
