@@ -70,3 +70,7 @@ $route['wallet/delete/(:any)'] = 'wallet/delete/$1';
 $route['wallet/balance'] = 'wallet/balance';
 $route['wallet/transactions'] = 'wallet/transactions';
 $route['wallet/deposit'] = 'wallet/deposit';
+
+// Game Routes
+$route['game1/play'] = 'game/play_game1';
+$route['game2/play'] = 'game/play_game2';
