@@ -74,3 +74,4 @@ $route['wallet/deposit'] = 'wallet/deposit';
 // Game Routes
 $route['game1/play'] = 'game/play_game1';
 $route['game2/play'] = 'game/play_game2';
+$route['game3/play'] = 'game/play_game3';

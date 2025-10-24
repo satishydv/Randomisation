@@ -1,0 +1,314 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { 
+  gameTabs, 
+  numberDataMap, 
+  initialMyHistoryData,
+  initialHistory30s,
+  initialHistory60s,
+  initialHistory180s,
+  initialHistory300s
+} from './utils/gameData';
+import GameTabs from './GameTabs';
+import GameTimer from './GameTimer';
+import BettingSection from './BettingSection';
+import HistoryTabs from './HistoryTabs';
+import GameHistoryTable from './GameHistoryTable';
+import MyHistoryTable from './MyHistoryTable';
+import HowToPlayModal from './HowToPlayModal';
+import ResultModal from './ResultModal';
+import useGameTimers from './hooks/useGameTimers';
+import GlobalStyles from './Styles/GlobalStyles';
+import WalletCard from './WalletCard';
+import Headersg from './Headersg';
+import HorizontalNoticeBar from '../Homepage/NoticeBar';
+import { GameProvider, useGameContext } from '../../contexts/GameContext';
+
+// Hook to remember previous value
+function usePrevious(value) {
+  const ref = useRef();
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref.current;
+}
+
+// Map tabId to initial dummy history
+const initialHistoryMap = {
+  1: initialHistory30s,
+  2: initialHistory60s,
+  3: initialHistory180s,
+  4: initialHistory300s
+};
+
+// Game Content Component (uses GameContext)
+function GameContent() {
+  const location = useLocation();
+  
+  // Add debugging
+  console.log('GameContent rendering...');
+  
+  let gameContext;
+  try {
+    gameContext = useGameContext();
+    console.log('GameContext loaded successfully:', gameContext);
+  } catch (error) {
+    console.error('GameContext error:', error);
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4 flex flex-col items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">Context Error</h1>
+          <p className="text-gray-300 mb-4">Failed to load game context.</p>
+          <p className="text-sm text-gray-500">Error: {error.message}</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const { playGame1, hasBets, getTabResult, clearTabResult, isTabLoading } = gameContext;
+
+  // --- Active Tab State with URL support ---
+  const getInitialTab = () => {
+    const params = new URLSearchParams(location.search);
+    const tabId = params.get('tab');
+    if (tabId) {
+      const foundTab = gameTabs.find(tab => tab.id === parseInt(tabId, 10));
+      if (foundTab) return foundTab;
+    }
+    return gameTabs[0];
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  const [activeHistoryTab, setActiveHistoryTab] = useState('game');
+  const [isHowToPlayModalOpen, setIsHowToPlayModalOpen] = useState(false);
+  const [resultModalData, setResultModalData] = useState(null);
+  const [betSuccess, setBetSuccess] = useState(false);
+  const [betsPlaced, setBetsPlaced] = useState(new Set());
+  const [apiError, setApiError] = useState(null);
+
+  const { timers, periods } = useGameTimers();
+  const activeTimerValue = timers[activeTab.duration];
+  const activePeriodForDisplay = periods[activeTab.duration];
+
+  // --- Auto History Logic Per Tab ---
+  const [tabHistory, setTabHistory] = useState({}); // { tabId: [historyItems] }
+
+  // Initialize tab history with 7 dummy records per tab
+  useEffect(() => {
+    setTabHistory(prev => ({
+      ...prev,
+      [activeTab.id]: initialHistoryMap[activeTab.id] || []
+    }));
+  }, [activeTab.id]);
+
+  // API call when timer reaches 5 seconds
+  useEffect(() => {
+    if (activeTimerValue === 5 && hasBets(activeTab.id)) {
+      const callGameAPI = async () => {
+        try {
+          setApiError(null);
+          const result = await playGame1(activeTab.id);
+          
+          // Update history with real API result
+          const newItem = {
+            period: Date.now().toString().slice(0, 12),
+            number: result.generatedNumber,
+            bs: result.outcomes.bigSmall,
+            colors: result.outcomes.colors
+          };
+
+          setTabHistory(prev => {
+            const prevHistory = prev[activeTab.id] || [];
+            return {
+              ...prev,
+              [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
+            };
+          });
+
+          // Show result modal if user had bets
+          if (betsPlaced.has(activeTab.id)) {
+            const userResult = result.winners.length > 0 ? 
+              { isWin: true, profit: result.winners[0].netProfit || result.winners[0].winningAmount } :
+              { isWin: false, profit: result.losers[0]?.netLoss || 0 };
+
+            setResultModalData({
+              gameName: activeTab.name,
+              period: newItem.period,
+              gameResult: newItem,
+              userResult: userResult
+            });
+
+            setBetsPlaced(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(activeTab.id);
+              return newSet;
+            });
+          }
+        } catch (error) {
+          console.error('Game API Error:', error);
+          setApiError(error.message);
+        }
+      };
+
+      callGameAPI();
+    }
+  }, [activeTimerValue, activeTab.id, hasBets, playGame1, betsPlaced]);
+
+  // Generate random result when timer hits 0 (fallback for no bets)
+  useEffect(() => {
+    if (activeTimerValue === 0 && !hasBets(activeTab.id)) {
+      const randomIndex = Math.floor(Math.random() * numberDataMap.length);
+      const randomResult = numberDataMap[randomIndex];
+      const newPeriod = Date.now().toString().slice(0, 12);
+
+      const newItem = {
+        period: newPeriod,
+        number: randomResult.path,
+        bs: randomResult.bs,
+        colors: randomResult.colors
+      };
+
+      setTabHistory(prev => {
+        const prevHistory = prev[activeTab.id] || [];
+        return {
+          ...prev,
+          [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
+        };
+      });
+    }
+  }, [activeTimerValue, activeTab.id, hasBets]);
+
+  const activeGameHistoryData = tabHistory[activeTab.id] || [];
+
+  const handleBetSuccess = () => {
+    setBetSuccess(true);
+    setTimeout(() => setBetSuccess(false), 2000);
+    // Track that this tab has bets for the current period
+    setBetsPlaced(prev => new Set(prev).add(activeTab.id));
+  };
+
+  const prevActiveGameHistory = usePrevious(activeGameHistoryData);
+  const prevActiveTab = usePrevious(activeTab);
+
+  // Show result modal if bet won/lost
+  useEffect(() => {
+    if (!prevActiveGameHistory || !prevActiveTab) return;
+    if (prevActiveTab.id !== activeTab.id) return;
+
+    const historyChanged = activeGameHistoryData !== prevActiveGameHistory &&
+      activeGameHistoryData.length > 0 &&
+      (prevActiveGameHistory.length === 0 || activeGameHistoryData[0]?.period !== prevActiveGameHistory[0]?.period);
+
+    if (historyChanged) {
+      const newGameResult = activeGameHistoryData[0];
+      if (betsPlaced.has(newGameResult.period)) {
+        const dummyUserResult = {
+          isWin: Math.random() > 0.5,
+          profit: Math.random() > 0.5 ? 98.00 : -100.00
+        };
+
+        setResultModalData({
+          gameName: activeTab.name,
+          period: newGameResult.period,
+          gameResult: newGameResult,
+          userResult: dummyUserResult
+        });
+
+        setBetsPlaced(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(newGameResult.period);
+          return newSet;
+        });
+      }
+    }
+  }, [activeGameHistoryData, activeTab, prevActiveGameHistory, prevActiveTab, betsPlaced]);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4 flex flex-col items-center">
+      <GlobalStyles />
+
+      <div className="w-full max-w-2xl mx-auto">
+        <Headersg />
+
+        <WalletCard />
+        <HorizontalNoticeBar />
+        <GameTabs activeTab={activeTab} onSelect={setActiveTab} />
+
+        <GameTimer
+          activeTab={activeTab}
+          seconds={activeTimerValue}
+          period={activePeriodForDisplay}
+          onHowToPlayClick={() => setIsHowToPlayModalOpen(true)}
+        />
+
+        {/* API Error Display */}
+        {apiError && (
+          <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-200">
+            <p className="font-semibold">Game Error:</p>
+            <p className="text-sm">{apiError}</p>
+            <button 
+              onClick={() => setApiError(null)}
+              className="mt-2 text-xs bg-red-600 px-2 py-1 rounded hover:bg-red-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {isTabLoading(activeTab.id) && (
+          <div className="mb-4 p-3 bg-blue-900/50 border border-blue-500 rounded-lg text-blue-200">
+            <p className="font-semibold">Processing Game...</p>
+            <p className="text-sm">Please wait while we process your bets.</p>
+          </div>
+        )}
+
+        <BettingSection
+          activeTab={activeTab}
+          activeTimerValue={activeTimerValue}
+          betSuccess={betSuccess}
+          onBetSuccess={handleBetSuccess}
+        />
+
+        <div className="mt-5 bg-[#1e1e1e] rounded-2xl shadow-md text-white overflow-hidden">
+          <HistoryTabs activeTab={activeHistoryTab} onSelect={setActiveHistoryTab} />
+          <div>
+            {activeHistoryTab === 'game' && <GameHistoryTable historyData={activeGameHistoryData} />}
+            {activeHistoryTab === 'my' && <MyHistoryTable historyData={initialMyHistoryData} />}
+          </div>
+        </div>
+      </div>
+
+      {isHowToPlayModalOpen && <HowToPlayModal onClose={() => setIsHowToPlayModalOpen(false)} />}
+      {resultModalData && <ResultModal {...resultModalData} onClose={() => setResultModalData(null)} />}
+    </div>
+  );
+}
+
+// Main GamePage component with GameProvider
+export default function GamePage() {
+  try {
+    return (
+      <GameProvider>
+        <GameContent />
+      </GameProvider>
+    );
+  } catch (error) {
+    console.error('GamePage Error:', error);
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4 flex flex-col items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">Game Error</h1>
+          <p className="text-gray-300 mb-4">Something went wrong loading the game.</p>
+          <p className="text-sm text-gray-500">Error: {error.message}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+}

@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+
+ html,body{
+    overflow: hidden;
+    
+} 
+#scroll::-webkit-scrollbar{
+    display: none;
+}
+
+@keyframes popup {
+  from {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
