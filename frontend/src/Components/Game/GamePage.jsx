@@ -19,7 +19,6 @@ import MyHistoryTable from './MyHistoryTable';
 import HowToPlayModal from './HowToPlayModal';
 import ResultModal from './ResultModal';
 import QueueStatus from './QueueStatus';
-import QueueTest from './QueueTest';
 import GameResultModal from './GameResultModal';
 import useGameTimers from './hooks/useGameTimers';
 import GlobalStyles from './Styles/GlobalStyles';
@@ -341,10 +340,6 @@ function GameContent() {
           onBetSuccess={handleBetSuccess}
         />
 
-        {/* Queue Test - Temporary for debugging */}
-        <div className="mt-5">
-          <QueueTest />
-        </div>
 
         {/* Queue Status */}
         {currentSessionId && (
