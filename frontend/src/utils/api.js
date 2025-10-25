@@ -185,9 +185,65 @@ export const gameAPI = {
   },
 
   // Get game history
-  getGameHistory: async (gameType, limit = 50, offset = 0) => {
+  getGameHistory: async (gameType = null, limit = 50, offset = 0) => {
     const params = new URLSearchParams({ limit, offset });
-    return apiRequest(`/game${gameType}/history?${params}`, {
+    if (gameType) params.append('game_type', gameType);
+    return apiRequest(`/game/history?${params}`, {
+      method: 'GET',
+    });
+  },
+
+  // Get user game history
+  getUserGameHistory: async (limit = 50, offset = 0) => {
+    const params = new URLSearchParams({ limit, offset });
+    return apiRequest(`/game/user-history?${params}`, {
+      method: 'GET',
+    });
+  },
+
+  // Queue Management API functions
+  getActiveSession: async (gameType) => {
+    return apiRequest(`/game/active-session?game_type=${gameType}`, {
+      method: 'GET',
+    });
+  },
+
+  joinQueue: async (gameType, betData) => {
+    const body = { game_type: gameType, bet_data: betData };
+    
+    return apiRequest('/game/join-queue', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  getQueueStatus: async (sessionId) => {
+    return apiRequest(`/game/queue-status?session_id=${sessionId}`, {
+      method: 'GET',
+    });
+  },
+
+  getQueueResults: async (sessionId) => {
+    return apiRequest(`/game/queue-results?session_id=${sessionId}`, {
+      method: 'GET',
+    });
+  },
+
+  getUserResult: async (sessionId) => {
+    return apiRequest(`/game/user-result?session_id=${sessionId}`, {
+      method: 'GET',
+    });
+  },
+
+  processQueue: async (sessionId, gameType) => {
+    return apiRequest('/game/process-queue', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId, game_type: gameType }),
+    });
+  },
+
+  getTimerResult: async (gameType) => {
+    return apiRequest(`/game/timer-result?game_type=${gameType}`, {
       method: 'GET',
     });
   },

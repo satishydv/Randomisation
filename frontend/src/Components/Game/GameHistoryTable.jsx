@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { gameAPI } from "../../utils/api";
 
 // Components for rendering
 const ResultImage = ({ path }) => (
@@ -22,7 +23,50 @@ const ResultColorDots = ({ colors }) => (
   </div>
 );
 
-const GameHistoryTable = ({ historyData = [] }) => {
+const GameHistoryTable = ({ gameType = null, limit = 7 }) => {
+  const [historyData, setHistoryData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    hasMore: false
+  });
+
+  const fetchHistory = async (offset = 0) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await gameAPI.getGameHistory(gameType, limit, offset);
+      
+      if (response.success) {
+        const formattedData = response.data.data.map(item => item.formatted);
+        setHistoryData(formattedData);
+        setPagination({
+          currentPage: Math.floor(offset / limit) + 1,
+          totalPages: Math.ceil(response.data.pagination.total / limit),
+          hasMore: response.data.pagination.has_more
+        });
+      } else {
+        setError(response.data.message || 'Failed to fetch game history');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection.');
+      console.error('Game history fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory(0);
+  }, [gameType, limit]);
+
+  const handlePageChange = (newPage) => {
+    const offset = (newPage - 1) * limit;
+    fetchHistory(offset);
+  };
   return (
     <div className="text-gray-300 text-sm">
       {/* Header */}
@@ -33,13 +77,36 @@ const GameHistoryTable = ({ historyData = [] }) => {
         <div className="flex-none basis-4/24 text-center">Color</div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center text-gray-500 p-8">
+          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+          <p className="mt-2">Loading game history...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center text-red-400 p-8">
+          <p className="font-semibold">Error loading history</p>
+          <p className="text-sm">{error}</p>
+          <button 
+            onClick={() => fetchHistory(0)}
+            className="mt-2 text-xs bg-red-600 px-3 py-1 rounded hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Body */}
-      {historyData.length === 0 && (
+      {!loading && !error && historyData.length === 0 && (
         <div className="text-center text-gray-500 p-8">No history yet.</div>
       )}
-      {historyData.slice(0, 7).map((item) => (
+      
+      {!loading && !error && historyData.map((item, index) => (
         <div
-          key={item.period}
+          key={`${item.period}-${index}`}
           className="flex items-center py-3 px-3 border-b border-gray-700 last:border-b-0"
         >
           <div className="flex-none basis-10/24 font-medium">{item.period}</div>
@@ -56,11 +123,25 @@ const GameHistoryTable = ({ historyData = [] }) => {
       ))}
 
       {/* Footer */}
-      <div className="flex justify-between items-center p-3 text-gray-500 border-t border-gray-700">
-        <button className="opacity-50 cursor-not-allowed">{"<"}</button>
-        <span>1/50</span>
-        <button className="hover:text-white">{">"}</button>
-      </div>
+      {!loading && !error && (
+        <div className="flex justify-between items-center p-3 text-gray-500 border-t border-gray-700">
+          <button 
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage <= 1}
+            className={`${pagination.currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:text-white'}`}
+          >
+            {"<"}
+          </button>
+          <span>{pagination.currentPage}/{pagination.totalPages}</span>
+          <button 
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={!pagination.hasMore}
+            className={`${!pagination.hasMore ? 'opacity-50 cursor-not-allowed' : 'hover:text-white'}`}
+          >
+            {">"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

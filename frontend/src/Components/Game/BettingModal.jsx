@@ -2,11 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { colorStyles } from './utils/gameData';
 import CustomCheckbox from './CustomCheckbox';
 import BetButton from './BetButton';
+import { gameAPI } from '../../utils/api';
 
-const BettingModal = ({ betType, betValue, gameName, onClose, selectedAmount, setSelectedAmount, onBetSuccess }) => {
+const BettingModal = ({ betType, betValue, gameName, onClose, selectedAmount, setSelectedAmount, onBetSuccess, gameType = '1' }) => {
   const [quantity, setQuantity] = useState(1);
   const [multiplier, setMultiplier] = useState(1);
   const [isAgreed, setIsAgreed] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   // Determine theme based on bet type and value
   const getTheme = () => {
@@ -23,17 +26,54 @@ const BettingModal = ({ betType, betValue, gameName, onClose, selectedAmount, se
   const theme = getTheme();
   const totalAmount = useMemo(() => selectedAmount * quantity * multiplier, [selectedAmount, quantity, multiplier]);
 
-  const handlePlaceBet = () => {
-    const betData = {
-      type: betType,
-      value: betValue,
-      amount: totalAmount,
-      quantity: quantity,
-      multiplier: multiplier
-    };
+  const handlePlaceBet = async () => {
+    if (isSubmitting) return;
     
-    onBetSuccess(betData);
-    onClose();
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      const betData = {
+        [betType]: {
+          value: betValue,
+          amount: totalAmount
+        }
+      };
+      
+      // First get the active session for this game type
+      const sessionResponse = await gameAPI.getActiveSession(gameType);
+      if (!sessionResponse.success) {
+        setError('Failed to get active session');
+        return;
+      }
+      
+      // Then join the queue with the active session
+      const response = await gameAPI.joinQueue(gameType, betData);
+      
+      if (response.success) {
+        // Success - bet queued
+        const successData = {
+          type: betType,
+          value: betValue,
+          amount: totalAmount,
+          quantity: quantity,
+          multiplier: multiplier,
+          queueId: response.data.queue_id,
+          sessionId: response.data.session_id,
+          processed: response.data.processed
+        };
+        
+        onBetSuccess(successData);
+        onClose();
+      } else {
+        setError(response.data.error || 'Failed to place bet');
+      }
+    } catch (err) {
+      console.error('Bet placement error:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -55,6 +95,14 @@ const BettingModal = ({ betType, betValue, gameName, onClose, selectedAmount, se
         </div>
 
         <div className="p-4 space-y-4">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-900/30 border border-red-500 rounded-lg p-3 text-red-200">
+              <p className="font-semibold">Error:</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+          
           <div>
             <div className="flex justify-between items-center mb-3">
               <span className="text-gray-400 font-medium">Balance</span>
@@ -131,11 +179,11 @@ const BettingModal = ({ betType, betValue, gameName, onClose, selectedAmount, se
             Cancel
           </button>
           <button 
-            disabled={!isAgreed} 
+            disabled={!isAgreed || isSubmitting} 
             onClick={handlePlaceBet} 
-            className={`w-2/3 ${theme.bg} text-white font-bold py-3 rounded-lg shadow-lg ${!isAgreed && "opacity-50 cursor-not-allowed"}`}
+            className={`w-2/3 ${theme.bg} text-white font-bold py-3 rounded-lg shadow-lg ${(!isAgreed || isSubmitting) && "opacity-50 cursor-not-allowed"}`}
           >
-            Total ₹{totalAmount.toFixed(2)}
+            {isSubmitting ? 'Placing Bet...' : `Total ₹${totalAmount.toFixed(2)}`}
           </button>
         </div>
       </div>

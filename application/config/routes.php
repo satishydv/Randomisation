@@ -75,3 +75,18 @@ $route['wallet/deposit'] = 'wallet/deposit';
 $route['game1/play'] = 'game/play_game1';
 $route['game2/play'] = 'game/play_game2';
 $route['game3/play'] = 'game/play_game3';
+$route['game/history'] = 'game/history';
+$route['game/user-history'] = 'game/user_history';
+
+// Queue Routes
+$route['game/active-session'] = 'game/active_session';
+$route['game/join-queue'] = 'game/join_queue';
+$route['game/queue-status'] = 'game/queue_status';
+$route['game/queue-results'] = 'game/queue_results';
+$route['game/user-result'] = 'game/user_result';
+$route['game/process-queue'] = 'game/process_queue';
+$route['game/force-process'] = 'game/force_process';
+$route['game/waiting-status'] = 'game/waiting_status';
+$route['game/auto-process'] = 'game/auto_process';
+$route['game/check-and-process'] = 'game/check_and_process';
+$route['game/timer-result'] = 'game/timer_result';

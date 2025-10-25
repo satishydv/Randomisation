@@ -121,6 +121,7 @@ const BettingSection = ({ activeTab, activeTimerValue, onBetSuccess, betSuccess 
           betType={openModal.type}
           betValue={openModal.value}
           gameName={activeTab.name}
+          gameType={activeTab.id.toString()}
           onClose={() => setOpenModal(null)}
           selectedAmount={selectedAmount}
           setSelectedAmount={setSelectedAmount}

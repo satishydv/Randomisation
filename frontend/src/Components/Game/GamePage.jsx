@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { gameAPI } from '../../utils/api';
 import { 
   gameTabs, 
   numberDataMap, 
@@ -17,6 +18,9 @@ import GameHistoryTable from './GameHistoryTable';
 import MyHistoryTable from './MyHistoryTable';
 import HowToPlayModal from './HowToPlayModal';
 import ResultModal from './ResultModal';
+import QueueStatus from './QueueStatus';
+import QueueTest from './QueueTest';
+import GameResultModal from './GameResultModal';
 import useGameTimers from './hooks/useGameTimers';
 import GlobalStyles from './Styles/GlobalStyles';
 import WalletCard from './WalletCard';
@@ -85,6 +89,8 @@ function GameContent() {
   const [betSuccess, setBetSuccess] = useState(false);
   const [betsPlaced, setBetsPlaced] = useState(new Set());
   const [apiError, setApiError] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [gameResultModal, setGameResultModal] = useState({ isOpen: false, userResult: null, gameResult: null });
 
   const { timers, periods } = useGameTimers();
   const activeTimerValue = timers[activeTab.duration];
@@ -101,20 +107,127 @@ function GameContent() {
     }));
   }, [activeTab.id]);
 
-  // API call when timer reaches 5 seconds
+  // Check for queue results when timer reaches 5 seconds
   useEffect(() => {
     if (activeTimerValue === 5 && hasBets(activeTab.id)) {
-      const callGameAPI = async () => {
+      const checkQueueResults = async () => {
         try {
           setApiError(null);
-          const result = await playGame1(activeTab.id);
+          // Get results from queue system instead of calling game API
+          const result = await gameAPI.getTimerResult(activeTab.id.toString());
           
-          // Update history with real API result
+          if (result.success && result.data.has_result) {
+            const gameResult = result.data.game_result;
+            const userResult = result.data.user_result;
+            
+            // Update history with queue result
+            const newItem = {
+              period: Date.now().toString().slice(0, 12),
+              number: gameResult.generatedNumber,
+              bs: gameResult.outcomes.bigSmall,
+              colors: gameResult.outcomes.colors
+            };
+
+            setTabHistory(prev => {
+              const prevHistory = prev[activeTab.id] || [];
+              return {
+                ...prev,
+                [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
+              };
+            });
+
+            // Show result modal with queue results
+            if (betsPlaced.has(activeTab.id)) {
+              const userWinLoss = userResult.isWinner ? 
+                { isWin: true, profit: userResult.result.netProfit || userResult.result.winningAmount } :
+                { isWin: false, profit: userResult.result.netLoss || 0 };
+
+              setResultModalData({
+                gameName: activeTab.name,
+                period: newItem.period,
+                gameResult: newItem,
+                userResult: userWinLoss
+              });
+
+              setBetsPlaced(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(activeTab.id);
+                return newSet;
+              });
+            }
+          } else {
+            // No queue results available - show "no game played" message
+            console.log('No queue results available for this game');
+          }
+        } catch (error) {
+          console.error('Queue Result Error:', error);
+          setApiError(error.message);
+        }
+      };
+
+      checkQueueResults();
+    }
+  }, [activeTimerValue, activeTab.id, hasBets, betsPlaced]);
+
+  // Check for queue results when timer hits 0 (fallback for no bets)
+  useEffect(() => {
+    if (activeTimerValue === 0 && !hasBets(activeTab.id)) {
+      const checkQueueResults = async () => {
+        try {
+          // Check if there are any queue results available
+          const result = await gameAPI.getTimerResult(activeTab.id.toString());
+          
+          if (result.success && result.data.has_result) {
+            const gameResult = result.data.game_result;
+            
+            // Update history with queue result
+            const newItem = {
+              period: Date.now().toString().slice(0, 12),
+              number: gameResult.generatedNumber,
+              bs: gameResult.outcomes.bigSmall,
+              colors: gameResult.outcomes.colors
+            };
+
+            setTabHistory(prev => {
+              const prevHistory = prev[activeTab.id] || [];
+              return {
+                ...prev,
+                [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
+              };
+            });
+          } else {
+            // No queue results - generate random result as fallback
+            const randomIndex = Math.floor(Math.random() * numberDataMap.length);
+            const randomResult = numberDataMap[randomIndex];
+            const newPeriod = Date.now().toString().slice(0, 12);
+
+            const newItem = {
+              period: newPeriod,
+              number: randomResult.path,
+              bs: randomResult.bs,
+              colors: randomResult.colors
+            };
+
+            setTabHistory(prev => {
+              const prevHistory = prev[activeTab.id] || [];
+              return {
+                ...prev,
+                [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
+              };
+            });
+          }
+        } catch (error) {
+          console.error('Queue Result Error (fallback):', error);
+          // Fallback to random result on error
+          const randomIndex = Math.floor(Math.random() * numberDataMap.length);
+          const randomResult = numberDataMap[randomIndex];
+          const newPeriod = Date.now().toString().slice(0, 12);
+
           const newItem = {
-            period: Date.now().toString().slice(0, 12),
-            number: result.generatedNumber,
-            bs: result.outcomes.bigSmall,
-            colors: result.outcomes.colors
+            period: newPeriod,
+            number: randomResult.path,
+            bs: randomResult.bs,
+            colors: randomResult.colors
           };
 
           setTabHistory(prev => {
@@ -124,67 +237,25 @@ function GameContent() {
               [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
             };
           });
-
-          // Show result modal if user had bets
-          if (betsPlaced.has(activeTab.id)) {
-            const userResult = result.winners.length > 0 ? 
-              { isWin: true, profit: result.winners[0].netProfit || result.winners[0].winningAmount } :
-              { isWin: false, profit: result.losers[0]?.netLoss || 0 };
-
-            setResultModalData({
-              gameName: activeTab.name,
-              period: newItem.period,
-              gameResult: newItem,
-              userResult: userResult
-            });
-
-            setBetsPlaced(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(activeTab.id);
-              return newSet;
-            });
-          }
-        } catch (error) {
-          console.error('Game API Error:', error);
-          setApiError(error.message);
         }
       };
 
-      callGameAPI();
-    }
-  }, [activeTimerValue, activeTab.id, hasBets, playGame1, betsPlaced]);
-
-  // Generate random result when timer hits 0 (fallback for no bets)
-  useEffect(() => {
-    if (activeTimerValue === 0 && !hasBets(activeTab.id)) {
-      const randomIndex = Math.floor(Math.random() * numberDataMap.length);
-      const randomResult = numberDataMap[randomIndex];
-      const newPeriod = Date.now().toString().slice(0, 12);
-
-      const newItem = {
-        period: newPeriod,
-        number: randomResult.path,
-        bs: randomResult.bs,
-        colors: randomResult.colors
-      };
-
-      setTabHistory(prev => {
-        const prevHistory = prev[activeTab.id] || [];
-        return {
-          ...prev,
-          [activeTab.id]: [newItem, ...prevHistory.slice(0, 6)] // keep top 7
-        };
-      });
+      checkQueueResults();
     }
   }, [activeTimerValue, activeTab.id, hasBets]);
 
   const activeGameHistoryData = tabHistory[activeTab.id] || [];
 
-  const handleBetSuccess = () => {
+  const handleBetSuccess = (betData) => {
     setBetSuccess(true);
     setTimeout(() => setBetSuccess(false), 2000);
     // Track that this tab has bets for the current period
     setBetsPlaced(prev => new Set(prev).add(activeTab.id));
+    
+    // Set session ID if this is a new bet
+    if (betData && betData.sessionId) {
+      setCurrentSessionId(betData.sessionId);
+    }
   };
 
   const prevActiveGameHistory = usePrevious(activeGameHistoryData);
@@ -270,17 +341,50 @@ function GameContent() {
           onBetSuccess={handleBetSuccess}
         />
 
+        {/* Queue Test - Temporary for debugging */}
+        <div className="mt-5">
+          <QueueTest />
+        </div>
+
+        {/* Queue Status */}
+        {currentSessionId && (
+          <div className="mt-5">
+            <QueueStatus 
+              sessionId={currentSessionId}
+              onGameComplete={(result) => {
+                console.log('Game completed:', result);
+                // Show result modal
+                if (result.user_result) {
+                  setGameResultModal({
+                    isOpen: true,
+                    userResult: result.user_result,
+                    gameResult: result.game_result
+                  });
+                }
+              }}
+            />
+          </div>
+        )}
+
         <div className="mt-5 bg-[#1e1e1e] rounded-2xl shadow-md text-white overflow-hidden">
           <HistoryTabs activeTab={activeHistoryTab} onSelect={setActiveHistoryTab} />
           <div>
-            {activeHistoryTab === 'game' && <GameHistoryTable historyData={activeGameHistoryData} />}
-            {activeHistoryTab === 'my' && <MyHistoryTable historyData={initialMyHistoryData} />}
+            {activeHistoryTab === 'game' && <GameHistoryTable gameType={activeTab.id} limit={7} />}
+            {activeHistoryTab === 'my' && <MyHistoryTable limit={7} />}
           </div>
         </div>
       </div>
 
       {isHowToPlayModalOpen && <HowToPlayModal onClose={() => setIsHowToPlayModalOpen(false)} />}
       {resultModalData && <ResultModal {...resultModalData} onClose={() => setResultModalData(null)} />}
+      
+      {/* Game Result Modal */}
+      <GameResultModal
+        isOpen={gameResultModal.isOpen}
+        onClose={() => setGameResultModal({ isOpen: false, userResult: null, gameResult: null })}
+        userResult={gameResultModal.userResult}
+        gameResult={gameResultModal.gameResult}
+      />
     </div>
   );
 }
