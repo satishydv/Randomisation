@@ -107,9 +107,9 @@ function GameContent() {
     }));
   }, [activeTab.id]);
 
-  // Check for queue results when timer reaches 5 seconds
+  // Check for queue results when timer ends (0 seconds)
   useEffect(() => {
-    if (activeTimerValue === 5 && hasBets(activeTab.id)) {
+    if (activeTimerValue === 0 && hasBets(activeTab.id)) {
       const checkQueueResults = async () => {
         try {
           setApiError(null);
@@ -159,7 +159,7 @@ function GameContent() {
                 return newSet;
               });
 
-              // Refresh wallet balance after game result
+              // Refresh wallet balance after game result (only at timer end)
               setWalletRefreshTrigger(prev => prev + 1);
             }
           } else {
@@ -263,9 +263,6 @@ function GameContent() {
     if (betData && betData.sessionId) {
       setCurrentSessionId(betData.sessionId);
     }
-
-    // Refresh wallet balance after bet placement
-    setWalletRefreshTrigger(prev => prev + 1);
   };
 
   const prevActiveGameHistory = usePrevious(activeGameHistoryData);

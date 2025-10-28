@@ -69,7 +69,7 @@ function WalletCard({ refreshTrigger = 0 }) {
             ) : error ? (
               <span className="text-red-400">Error</span>
             ) : (
-              `₹${balance.toFixed(2)}`
+              `$${balance.toFixed(2)}`
             )}
           </div>
         </div>

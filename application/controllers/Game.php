@@ -446,19 +446,22 @@ class Game extends CI_Controller {
 			
 			if ($netResult > 0) {
 				// Player made profit - credit the net amount
-				$walletResult = $this->updateWallet($p['userId'], $netResult, 'CREDIT', 'Game1 Win');
+				$winningsAfterDeduction = $playerResult['totalWinnings'] * 0.98; // 2% deduction
+				$walletResult = $this->updateWallet($p['userId'], $winningsAfterDeduction, 'CREDIT', 'Game1 Win');
 				$p['walletUpdated'] = isset($walletResult['success']) ? $walletResult['success'] : false;
 				$p['transactionId'] = isset($walletResult['transaction_id']) ? $walletResult['transaction_id'] : null;
-				$p['netProfit'] = $netResult;
-				$p['totalWinnings'] = $playerResult['totalWinnings'];
+				$p['netProfit'] = $winningsAfterDeduction - $totalBetAmount;
+				$p['totalWinnings'] = $winningsAfterDeduction;
+				$p['originalWinnings'] = $playerResult['totalWinnings'];
+				$p['deductionAmount'] = $playerResult['totalWinnings'] - $winningsAfterDeduction;
 				$p['totalBets'] = $totalBetAmount;
 				$p['winningBets'] = $playerResult['winningBets'];
 				$p['walletDebug'] = $walletResult;
 				
 				$winners[] = $p;
 			} else if ($netResult < 0) {
-				// Player lost money - debit the net loss
-				$walletResult = $this->updateWallet($p['userId'], abs($netResult), 'DEBIT', 'Game1 Loss');
+				// Player lost - deduct the bet amount
+				$walletResult = $this->updateWallet($p['userId'], $totalBetAmount, 'DEBIT', 'Game1 Loss');
 				$p['walletUpdated'] = isset($walletResult['success']) ? $walletResult['success'] : false;
 				$p['transactionId'] = isset($walletResult['transaction_id']) ? $walletResult['transaction_id'] : null;
 				$p['netLoss'] = abs($netResult);
@@ -1342,57 +1345,33 @@ class Game extends CI_Controller {
 	}
 
 	private function getFullGameResult($gameResultId) {
-		// Get the actual game result from game_history table
-		$gameResult = $this->db->where('id', $gameResultId)
-							  ->get('game_history')
+		// Get the stored game result data from the queue entry
+		$queueEntry = $this->db->where('game_result_id', $gameResultId)
+							  ->where('queue_status', 'completed')
+							  ->get('game_queue')
 							  ->row_array();
 		
-		if (!$gameResult) {
+		if (!$queueEntry || !$queueEntry['game_result_data']) {
+			error_log("No queue entry found for game result ID: $gameResultId");
 			return null;
 		}
 		
-		// Reconstruct the full game result structure
-		$generatedNumber = (int)$gameResult['number'];
-		$bigSmall = $gameResult['big_small'];
-		$colors = $gameResult['color'] ? explode(',', $gameResult['color']) : [];
+		// Return the stored game result data directly
+		$fullGameResult = json_decode($queueEntry['game_result_data'], true);
 		
-		// Determine outcomes based on the generated number
-		$outcomes = $this->determineGame1Outcomes($generatedNumber);
-		
-		// Get queue entries for this game result
-		$queueEntries = $this->db->where('game_result_id', $gameResultId)
-								->where('queue_status', 'completed')
-								->get('game_queue')
-								->result_array();
-		
-		$winners = [];
-		$losers = [];
-		
-		// Process each queue entry to determine winners/losers
-		foreach ($queueEntries as $entry) {
-			$userResult = json_decode($entry['user_result_data'], true);
-			if ($userResult && isset($userResult['result'])) {
-				if ($userResult['isWinner']) {
-					$winners[] = $userResult['result'];
-				} else {
-					$losers[] = $userResult['result'];
-				}
-			}
+		if (!$fullGameResult) {
+			error_log("Failed to decode game result data for ID: $gameResultId");
+			return null;
 		}
 		
-		return [
-			'generatedNumber' => $generatedNumber,
-			'outcomes' => $outcomes,
-			'winners' => $winners,
-			'losers' => $losers,
-			'historyId' => $gameResultId
-		];
+		
+		return $fullGameResult;
 	}
 
 	private function findUserInResults($fullGameResult, $userId) {
 		// Check if user is in winners
 		foreach ($fullGameResult['winners'] as $winner) {
-			if ($winner['userId'] === $userId) {
+			if (isset($winner['userId']) && $winner['userId'] === $userId) {
 				return [
 					'status' => 'win',
 					'result' => $winner,
@@ -1403,7 +1382,7 @@ class Game extends CI_Controller {
 
 		// Check if user is in losers
 		foreach ($fullGameResult['losers'] as $loser) {
-			if ($loser['userId'] === $userId) {
+			if (isset($loser['userId']) && $loser['userId'] === $userId) {
 				return [
 					'status' => 'loss',
 					'result' => $loser,
@@ -1597,24 +1576,28 @@ class Game extends CI_Controller {
 			$playerResult = $this->calculateGame1PlayerResult($p, $outcomes);
 			$totalBetAmount = $this->calculateTotalBetAmount($p['bets']);
 			
+			
 			// Calculate net result (winnings - total bets)
 			$netResult = $playerResult['totalWinnings'] - $totalBetAmount;
 			
 			if ($netResult > 0) {
 				// Player made profit - credit the net amount
-				$walletResult = $this->updateWallet($p['userId'], $netResult, 'CREDIT', 'Game1 Win');
+				$winningsAfterDeduction = $playerResult['totalWinnings'] * 0.98; // 2% deduction
+				$walletResult = $this->updateWallet($p['userId'], $winningsAfterDeduction, 'CREDIT', 'Game1 Win');
 				$p['walletUpdated'] = isset($walletResult['success']) ? $walletResult['success'] : false;
 				$p['transactionId'] = isset($walletResult['transaction_id']) ? $walletResult['transaction_id'] : null;
-				$p['netProfit'] = $netResult;
-				$p['totalWinnings'] = $playerResult['totalWinnings'];
+				$p['netProfit'] = $winningsAfterDeduction - $totalBetAmount;
+				$p['totalWinnings'] = $winningsAfterDeduction;
+				$p['originalWinnings'] = $playerResult['totalWinnings'];
+				$p['deductionAmount'] = $playerResult['totalWinnings'] - $winningsAfterDeduction;
 				$p['totalBets'] = $totalBetAmount;
 				$p['winningBets'] = $playerResult['winningBets'];
 				$p['walletDebug'] = $walletResult;
 				
 				$winners[] = $p;
 			} else if ($netResult < 0) {
-				// Player lost money - debit the net loss
-				$walletResult = $this->updateWallet($p['userId'], abs($netResult), 'DEBIT', 'Game1 Loss');
+				// Player lost - deduct the bet amount
+				$walletResult = $this->updateWallet($p['userId'], $totalBetAmount, 'DEBIT', 'Game1 Loss');
 				$p['walletUpdated'] = isset($walletResult['success']) ? $walletResult['success'] : false;
 				$p['transactionId'] = isset($walletResult['transaction_id']) ? $walletResult['transaction_id'] : null;
 				$p['netLoss'] = abs($netResult);
