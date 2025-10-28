@@ -1,9 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 // Icons
 import { Wallet, Upload, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { walletAPI } from '../../utils/api';
 
-function WalletCard() {
+function WalletCard({ refreshTrigger = 0 }) {
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch balance on component mount and when refreshTrigger changes
+  useEffect(() => {
+    fetchBalance();
+  }, [refreshTrigger]);
+
+  const fetchBalance = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching balance...');
+      const result = await walletAPI.getBalance();
+      console.log('Balance API result:', result);
+      
+      if (result.success && result.data.status === 'success') {
+        console.log('Balance fetched successfully:', result.data.data.balance);
+        setBalance(result.data.data.balance);
+      } else {
+        console.error('API Error:', result.data);
+        setError('Failed to fetch balance');
+        setBalance(0);
+      }
+    } catch (err) {
+      console.error('Error fetching balance:', err);
+      setError('Error fetching balance');
+      setBalance(0);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // 1. Card ke background image ka style
   const cardStyle = {
@@ -29,7 +64,13 @@ function WalletCard() {
         {/* L1: Balance Amount */}
         <div className="">
           <div className="text-3xl text-center font-bold text-white tracking-wider">
-            ₹234.96
+            {loading ? (
+              <span className="text-gray-400">Loading...</span>
+            ) : error ? (
+              <span className="text-red-400">Error</span>
+            ) : (
+              `₹${balance.toFixed(2)}`
+            )}
           </div>
         </div>
 

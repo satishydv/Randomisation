@@ -1342,63 +1342,49 @@ class Game extends CI_Controller {
 	}
 
 	private function getFullGameResult($gameResultId) {
-		// This would need to be implemented based on how you store the full game results
-		// For now, we'll return a mock structure
-		// In a real implementation, you might store this in a separate table or as JSON
+		// Get the actual game result from game_history table
+		$gameResult = $this->db->where('id', $gameResultId)
+							  ->get('game_history')
+							  ->row_array();
+		
+		if (!$gameResult) {
+			return null;
+		}
+		
+		// Reconstruct the full game result structure
+		$generatedNumber = (int)$gameResult['number'];
+		$bigSmall = $gameResult['big_small'];
+		$colors = $gameResult['color'] ? explode(',', $gameResult['color']) : [];
+		
+		// Determine outcomes based on the generated number
+		$outcomes = $this->determineGame1Outcomes($generatedNumber);
+		
+		// Get queue entries for this game result
+		$queueEntries = $this->db->where('game_result_id', $gameResultId)
+								->where('queue_status', 'completed')
+								->get('game_queue')
+								->result_array();
+		
+		$winners = [];
+		$losers = [];
+		
+		// Process each queue entry to determine winners/losers
+		foreach ($queueEntries as $entry) {
+			$userResult = json_decode($entry['user_result_data'], true);
+			if ($userResult && isset($userResult['result'])) {
+				if ($userResult['isWinner']) {
+					$winners[] = $userResult['result'];
+				} else {
+					$losers[] = $userResult['result'];
+				}
+			}
+		}
+		
 		return [
-			'generatedNumber' => 6,
-			'outcomes' => [
-				'number' => 6,
-				'bigSmall' => 'BIG',
-				'colors' => ['RED'],
-				'isGreen' => false,
-				'isRed' => true,
-				'isViolet' => false
-			],
-			'winners' => [],
-			'losers' => [
-				[
-					'userId' => '202510162278',
-					'bets' => [
-						'number' => [
-							'value' => 5,
-							'amount' => 100
-						]
-					],
-					'walletUpdated' => false,
-					'transactionId' => null,
-					'netLoss' => 100,
-					'totalWinnings' => 0,
-					'totalBets' => 100,
-					'winningBets' => [],
-					'walletDebug' => [
-						'success' => false,
-						'error' => 'Insufficient funds. Current balance: 84.75, Required: 100'
-					]
-				],
-				[
-					'userId' => '202510219920',
-					'bets' => [
-						'number' => [
-							'value' => 7,
-							'amount' => 200
-						]
-					],
-					'walletUpdated' => true,
-					'transactionId' => 42,
-					'netLoss' => 200,
-					'totalWinnings' => 0,
-					'totalBets' => 200,
-					'winningBets' => [],
-					'walletDebug' => [
-						'success' => true,
-						'transaction_id' => 42,
-						'balance_before' => 9841.7,
-						'balance_after' => 9641.7,
-						'amount' => 200
-					]
-				]
-			],
+			'generatedNumber' => $generatedNumber,
+			'outcomes' => $outcomes,
+			'winners' => $winners,
+			'losers' => $losers,
 			'historyId' => $gameResultId
 		];
 	}

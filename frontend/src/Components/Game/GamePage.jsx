@@ -90,6 +90,7 @@ function GameContent() {
   const [apiError, setApiError] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [gameResultModal, setGameResultModal] = useState({ isOpen: false, userResult: null, gameResult: null });
+  const [walletRefreshTrigger, setWalletRefreshTrigger] = useState(0);
 
   const { timers, periods } = useGameTimers();
   const activeTimerValue = timers[activeTab.duration];
@@ -113,18 +114,22 @@ function GameContent() {
         try {
           setApiError(null);
           // Get results from queue system instead of calling game API
-          const result = await gameAPI.getTimerResult(activeTab.id.toString());
+          const result = await gameAPI.getTimerResult('1');
           
           if (result.success && result.data.has_result) {
             const gameResult = result.data.game_result;
             const userResult = result.data.user_result;
             
+            // Debug logging
+            console.log('Game result structure:', gameResult);
+            console.log('Outcomes:', gameResult.outcomes);
+            
             // Update history with queue result
             const newItem = {
               period: Date.now().toString().slice(0, 12),
               number: gameResult.generatedNumber,
-              bs: gameResult.outcomes.bigSmall,
-              colors: gameResult.outcomes.colors
+              bs: gameResult.outcomes?.bigSmall || 'Unknown',
+              colors: gameResult.outcomes?.colors || []
             };
 
             setTabHistory(prev => {
@@ -153,6 +158,9 @@ function GameContent() {
                 newSet.delete(activeTab.id);
                 return newSet;
               });
+
+              // Refresh wallet balance after game result
+              setWalletRefreshTrigger(prev => prev + 1);
             }
           } else {
             // No queue results available - show "no game played" message
@@ -174,7 +182,7 @@ function GameContent() {
       const checkQueueResults = async () => {
         try {
           // Check if there are any queue results available
-          const result = await gameAPI.getTimerResult(activeTab.id.toString());
+          const result = await gameAPI.getTimerResult('1');
           
           if (result.success && result.data.has_result) {
             const gameResult = result.data.game_result;
@@ -183,8 +191,8 @@ function GameContent() {
             const newItem = {
               period: Date.now().toString().slice(0, 12),
               number: gameResult.generatedNumber,
-              bs: gameResult.outcomes.bigSmall,
-              colors: gameResult.outcomes.colors
+              bs: gameResult.outcomes?.bigSmall || 'Unknown',
+              colors: gameResult.outcomes?.colors || []
             };
 
             setTabHistory(prev => {
@@ -255,6 +263,9 @@ function GameContent() {
     if (betData && betData.sessionId) {
       setCurrentSessionId(betData.sessionId);
     }
+
+    // Refresh wallet balance after bet placement
+    setWalletRefreshTrigger(prev => prev + 1);
   };
 
   const prevActiveGameHistory = usePrevious(activeGameHistoryData);
@@ -300,7 +311,7 @@ function GameContent() {
       <div className="w-full max-w-2xl mx-auto">
         <Headersg />
 
-        <WalletCard />
+        <WalletCard refreshTrigger={walletRefreshTrigger} />
         <HorizontalNoticeBar />
         <GameTabs activeTab={activeTab} onSelect={setActiveTab} />
 

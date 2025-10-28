@@ -41,14 +41,14 @@ const BettingModal = ({ betType, betValue, gameName, onClose, selectedAmount, se
       };
       
       // First get the active session for this game type
-      const sessionResponse = await gameAPI.getActiveSession(gameType);
+      const sessionResponse = await gameAPI.getActiveSession('1');
       if (!sessionResponse.success) {
         setError('Failed to get active session');
         return;
       }
       
       // Then join the queue with the active session
-      const response = await gameAPI.joinQueue(gameType, betData);
+      const response = await gameAPI.joinQueue('1', betData);
       
       if (response.success) {
         // Success - bet queued
