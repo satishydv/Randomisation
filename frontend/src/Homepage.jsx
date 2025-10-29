@@ -30,9 +30,18 @@ const Homepage = () => {
 
   const handleCategoryClick = (categoryName) => {
     setActiveCategory(categoryName);
+    
+    // Force scroll even if clicking the same category
+    setTimeout(() => {
+      const gameSection = document.getElementById('game-list-section');
+      if (gameSection) {
+        gameSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
   
   useEffect(() => {
+    // Only scroll on user clicks, not on initial page load
     if (isInitialRender.current) {
       isInitialRender.current = false;
       return;
@@ -40,7 +49,10 @@ const Homepage = () => {
 
     const gameSection = document.getElementById('game-list-section');
     if (gameSection) {
-      gameSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Small delay to ensure the component has rendered
+      setTimeout(() => {
+        gameSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }
   }, [activeCategory]);
 

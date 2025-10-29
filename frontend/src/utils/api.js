@@ -27,8 +27,13 @@ const apiRequest = async (endpoint, options = {}) => {
   };
 
   try {
+    console.log('API Request - URL:', url);
+    console.log('API Request - Config:', config);
     const response = await fetch(url, config);
     const data = await response.json();
+    
+    console.log('API Response - Status:', response.status);
+    console.log('API Response - Data:', data);
     
     return {
       success: response.ok,
@@ -145,6 +150,16 @@ export const walletAPI = {
     return apiRequest(`/wallet/delete/${orderNumber}`, {
       method: 'DELETE',
     });
+  },
+
+  // Get wallet status
+  getStatus: async () => {
+    console.log('Making wallet status API call...');
+    const result = await apiRequest('/wallet/status', {
+      method: 'GET',
+    });
+    console.log('Wallet status API result:', result);
+    return result;
   },
 };
 

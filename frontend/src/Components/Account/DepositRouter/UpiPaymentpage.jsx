@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Copy, CheckCircle, Scan } from 'lucide-react';
+import { walletAPI } from '../../../utils/api';
 
 // Utility for formatting currency
 const formatAmount = (amount) => {
@@ -28,8 +29,26 @@ const UpiPaymentDetails = ({
 }) => {
   const [showCopyPopup, setShowCopyPopup] = useState(false);
   const [utrInput, setUtrInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [dynamicAmount, setDynamicAmount] = useState(selectedAmount);
+  const [depositMethod, setDepositMethod] = useState('UPI-QRpay');
 
-  const formattedAmount = formatAmount(selectedAmount);
+  // Load pending deposit data from localStorage
+  useEffect(() => {
+    const pendingDeposit = localStorage.getItem('pendingDeposit');
+    if (pendingDeposit) {
+      try {
+        const depositData = JSON.parse(pendingDeposit);
+        setDynamicAmount(depositData.amount);
+        setDepositMethod(depositData.method);
+      } catch (error) {
+        console.error('Error parsing pending deposit data:', error);
+      }
+    }
+  }, []);
+
+  const formattedAmount = formatAmount(dynamicAmount);
 
   // Copy logic
   const handleCopy = async (text) => {
@@ -49,32 +68,57 @@ const UpiPaymentDetails = ({
     setTimeout(() => setShowCopyPopup(false), 1400);
   };
 
-  // UTR submission logic
-  const uploadUTR = (e) => {
+  // UTR submission logic with API call
+  const uploadUTR = async (e) => {
     e.preventDefault();
-    const messageElement = document.getElementById('status-message');
-    if (utrInput.length === 12) {
-      console.log(`Submitting UTR: ${utrInput} for Order: ${orderId} and Amount: ${selectedAmount}`);
-      if (messageElement) {
-        messageElement.textContent = `UTR ${utrInput} submitted successfully! Please wait for confirmation.`;
-        messageElement.classList.remove('hidden');
-        setTimeout(() => messageElement.classList.add('hidden'), 3000);
+    
+    if (utrInput.length !== 12) {
+      setSubmitMessage('Please enter a valid 12-digit UTR.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitMessage('');
+
+    try {
+      // Check if user is authenticated
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Please login first');
       }
-    } else {
-      if (messageElement) {
-        messageElement.textContent = 'Please enter a valid 12-digit UTR.';
-        messageElement.classList.remove('hidden', 'text-green-600');
-        messageElement.classList.add('text-red-600');
+
+      // Generate reference ID
+      const referenceId = `DEP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Make API call using walletAPI
+      const result = await walletAPI.deposit(
+        dynamicAmount,
+        `Wallet Deposit via ${depositMethod} - UTR: ${utrInput}`,
+        referenceId
+      );
+
+      if (result.success && result.data.status === 'success') {
+        setSubmitMessage(`✅ Deposit successful! New balance: $${result.data.data.balance_after}`);
+        
+        // Clear the pending deposit data
+        localStorage.removeItem('pendingDeposit');
+        
+        // Redirect to account page after successful deposit
         setTimeout(() => {
-          messageElement.classList.add('hidden');
-          messageElement.classList.remove('text-red-600');
-          messageElement.classList.add('text-green-600');
+          window.location.href = '/account';
         }, 3000);
+      } else {
+        setSubmitMessage(`❌ ${result.data.message || 'Deposit failed'}`);
       }
+    } catch (error) {
+      console.error('Deposit error:', error);
+      setSubmitMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const upiDeepLink = `upi://pay?pa=${upiVpa}&pn=${qrTitle}&mc=${mcCode}&am=${selectedAmount}&cu=INR&tn=${orderId.slice(
+  const upiDeepLink = `upi://pay?pa=${upiVpa}&pn=${qrTitle}&mc=${mcCode}&am=${dynamicAmount}&cu=INR&tn=${orderId.slice(
     0,
     10
   )}&mode=02&purpose=00`;
@@ -165,23 +209,29 @@ const UpiPaymentDetails = ({
                 />
                 <button
                   type="submit"
+                  disabled={utrInput.length !== 12 || isSubmitting}
                   className={`px-4 py-3 rounded-lg font-bold transition duration-200 shadow-lg ${
-                    utrInput.length === 12
+                    utrInput.length === 12 && !isSubmitting
                       ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'bg-gray-300 text-gray-600 cursor-not-allowed'
                   }`}
                 >
-                  Submit
+                  {isSubmitting ? 'Processing...' : 'Submit'}
                 </button>
               </div>
             </form>
             <p className="text-xs text-gray-500">
               If automatic payment fails, input the 12-digit UTR/Reference number and click submit.
             </p>
-            <div
-              id="status-message"
-              className="hidden text-sm font-semibold text-center p-2 rounded bg-green-100 text-green-600"
-            ></div>
+            {submitMessage && (
+              <div className={`text-sm font-semibold text-center p-2 rounded ${
+                submitMessage.includes('✅') 
+                  ? 'bg-green-100 text-green-600' 
+                  : 'bg-red-100 text-red-600'
+              }`}>
+                {submitMessage}
+              </div>
+            )}
           </div>
         </div>
 

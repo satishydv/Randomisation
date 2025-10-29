@@ -13,11 +13,20 @@ class Wallet extends CI_Controller {
 	private function get_auth_user() {
 		$headers = function_exists('getallheaders') ? getallheaders() : array();
 		$auth_header = isset($headers['Authorization']) ? $headers['Authorization'] : (isset($headers['authorization']) ? $headers['authorization'] : '');
+		
+		// Debug logging
+		error_log("Auth Header: " . $auth_header);
+		
 		if (empty($auth_header) || !preg_match('/Bearer\s(\S+)/', $auth_header, $matches)) {
+			error_log("No valid auth header found");
 			return false;
 		}
 		$token = $matches[1];
 		$payload = $this->jwt->validate_token($token);
+		
+		// Debug logging
+		error_log("JWT Payload: " . json_encode($payload));
+		
 		return $payload ?: false;
 	}
 
@@ -177,6 +186,63 @@ class Wallet extends CI_Controller {
 			)
 		)));
 	}
+
+	// public function status() {
+	// 	header('Content-Type: application/json');
+	// 	$user = $this->get_auth_user();
+	// 	if (!$user) {
+	// 		$this->output->set_status_header(401)->set_output(json_encode(array('status' => 'error', 'message' => 'Unauthorized')));
+	// 		return;
+	// 	}
+		
+	// 	$wallet_status = $this->Wallet_model->get_wallet_status($user['user_id']);
+		
+	// 	// Debug logging
+	// 	error_log("Wallet Status Check - User ID: " . $user['user_id']);
+	// 	error_log("Wallet Status Check - Status: " . $wallet_status);
+	// 	error_log("Wallet Status Check - Is Blocked: " . ($wallet_status === 'blocked' ? 'true' : 'false'));
+		
+	// 	// Also log the SQL query for debugging
+	// 	$this->db->select('status, created_at');
+	// 	$this->db->where('user_id', $user['user_id']);
+	// 	$this->db->order_by('created_at', 'DESC');
+	// 	$query = $this->db->get_compiled_select('wallet');
+	// 	error_log("Wallet Status Query: " . $query);
+		
+	// 	$this->output->set_status_header(200)->set_output(json_encode(array(
+	// 		'status' => 'success',
+	// 		'data' => array(
+	// 			'user_id' => $user['user_id'],
+	// 			'wallet_status' => $wallet_status,
+	// 			'is_blocked' => $wallet_status === 'blocked'
+	// 		)
+	// 	)));
+	// }
+
+
+	public function status() {
+		header('Content-Type: application/json');
+	
+		$user = $this->get_auth_user();
+		if (!$user) {
+		  $this->output->set_status_header(401)
+			->set_output(json_encode(['status' => 'error', 'message' => 'Unauthorized']));
+		  return;
+		}
+	
+		$uid = $user['user_id'];
+		$wallet_status = $this->Wallet_model->get_user_wallet_status($uid);
+	
+		$this->output->set_status_header(200)
+		  ->set_output(json_encode([
+			'status' => 'success',
+			'data' => [
+			  'user_id' => $uid,
+			  'wallet_status' => $wallet_status,
+			  'is_blocked' => ($wallet_status === 'blocked')
+			]
+		  ]));
+	  }
 
 	public function transactions() {
 		header('Content-Type: application/json');

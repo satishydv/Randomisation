@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import { gameAPI } from '../../utils/api';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { gameAPI, walletAPI } from '../../utils/api';
 import { 
   gameTabs, 
   numberDataMap, 
@@ -26,6 +26,7 @@ import WalletCard from './WalletCard';
 import Headersg from './Headersg';
 import HorizontalNoticeBar from '../Homepage/NoticeBar';
 import { GameProvider, useGameContext } from '../../contexts/GameContext';
+import WalletBlockedModal from '../Common/WalletBlockedModal';
 
 // Hook to remember previous value
 function usePrevious(value) {
@@ -47,6 +48,7 @@ const initialHistoryMap = {
 // Game Content Component (uses GameContext)
 function GameContent() {
   const location = useLocation();
+  const navigate = useNavigate();
   
   // Add debugging
   console.log('GameContent rendering...');
@@ -91,6 +93,8 @@ function GameContent() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [gameResultModal, setGameResultModal] = useState({ isOpen: false, userResult: null, gameResult: null });
   const [walletRefreshTrigger, setWalletRefreshTrigger] = useState(0);
+  const [showWalletBlockedModal, setShowWalletBlockedModal] = useState(false);
+  const [isCheckingWallet, setIsCheckingWallet] = useState(true);
 
   const { timers, periods } = useGameTimers();
   const activeTimerValue = timers[activeTab.duration];
@@ -106,6 +110,64 @@ function GameContent() {
       [activeTab.id]: initialHistoryMap[activeTab.id] || []
     }));
   }, [activeTab.id]);
+
+  // Check wallet status on component mount
+  // useEffect(() => {
+  //   const checkWalletStatus = async () => {
+  //     try {
+  //       console.log('GamePage: Checking wallet status...');
+  //       const response = await walletAPI.getStatus();
+  //       console.log('GamePage: Wallet status response:', response);
+  //       if (response.success && response.data.is_blocked) {
+  //         console.log('GamePage: Wallet is blocked, showing modal');
+  //         setShowWalletBlockedModal(true);
+  //       } else {
+  //         console.log('GamePage: Wallet is not blocked, allowing access');
+  //       }
+  //     } catch (error) {
+  //       console.error('GamePage: Error checking wallet status:', error);
+  //     } finally {
+  //       setIsCheckingWallet(false);
+  //     }
+  //   };
+
+  //   checkWalletStatus();
+  // }, []);
+
+  useEffect(() => {
+    const checkWalletStatus = async () => {
+      try {
+        const res = await walletAPI.getStatus(); // Axios response
+  
+        // Axios: server JSON is under res.data
+        const ok = res?.data?.status === 'success' || res?.status === 200;
+        const payload = res?.data?.data; // { user_id, wallet_status, is_blocked }
+  
+        const isBlocked = payload?.is_blocked === true || payload?.wallet_status === 'blocked';
+  
+        console.log('Wallet payload:', payload);
+        console.log('ok=', ok, 'isBlocked=', isBlocked);
+  
+        if (ok && isBlocked) {
+          console.log('Wallet is blocked, showing modal');
+          setShowWalletBlockedModal(true);
+        } else {
+          console.log('Wallet is not blocked, allowing access');
+        }
+      } catch (error) {
+        console.error('Error checking wallet status:', error);
+      } finally {
+        setIsCheckingWallet(false);
+      }
+    };
+    checkWalletStatus();
+  }, []);
+  
+
+  const handleRechargeClick = () => {
+    setShowWalletBlockedModal(false);
+    navigate('/account');
+  };
 
   // Check for queue results when timer ends (0 seconds)
   useEffect(() => {
@@ -301,6 +363,18 @@ function GameContent() {
     }
   }, [activeGameHistoryData, activeTab, prevActiveGameHistory, prevActiveTab, betsPlaced]);
 
+  // Show loading state while checking wallet
+  if (isCheckingWallet) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4 flex flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400 mx-auto mb-4"></div>
+          <p className="text-white">Checking wallet status...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 flex flex-col items-center">
       <GlobalStyles />
@@ -387,6 +461,13 @@ function GameContent() {
         onClose={() => setGameResultModal({ isOpen: false, userResult: null, gameResult: null })}
         userResult={gameResultModal.userResult}
         gameResult={gameResultModal.gameResult}
+      />
+
+      {/* Wallet Blocked Modal */}
+      <WalletBlockedModal
+        isOpen={showWalletBlockedModal}
+        onClose={() => setShowWalletBlockedModal(false)}
+        onRecharge={handleRechargeClick}
       />
     </div>
   );

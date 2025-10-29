@@ -79,6 +79,45 @@ class Wallet_model extends CI_Model {
 		$this->db->update('wallet', $data);
 		return $this->db->affected_rows() > 0;
 	}
+
+	// public function get_wallet_status(string $user_id) {
+	// 	$this->db->select('status, created_at, id');
+	// 	$this->db->where('user_id', $user_id);
+	// 	$this->db->order_by('created_at', 'DESC'); // Get the most recent wallet record
+	// 	$result = $this->db->get('wallet')->row_array();
+		
+	// 	// Debug logging
+	// 	error_log("Wallet Model - User ID: " . $user_id);
+	// 	error_log("Wallet Model - Query Result: " . json_encode($result));
+		
+	// 	return $result ? $result['status'] : null;
+	// }
+
+
+	public function get_user_wallet_status(string $user_id) {
+		return $this->db->select('status')
+						->from('wallet')
+						->where('user_id', $user_id)
+						->get()
+						->row('status');
+	  }
+	
+	  // Create or update the user's wallet row (use in your write endpoints)
+	  public function upsert_by_user_id(string $user_id, array $data) {
+		// Always keep user_id in the row
+		$data['user_id'] = $user_id;
+	
+		// Try UPDATE first
+		$this->db->where('user_id', $user_id)->update('wallet', $data);
+		if ($this->db->affected_rows() > 0) {
+		  return true;
+		}
+	
+		// If no row existed, INSERT (unique key will prevent duplicates)
+		return $this->db->insert('wallet', $data);
+	  }
+	
+	  
 }
 
 

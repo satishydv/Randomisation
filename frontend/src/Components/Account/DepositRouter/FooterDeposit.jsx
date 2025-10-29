@@ -8,10 +8,10 @@ const FooterDeposit = ({ selectedMethod = 'UPI-QRpay', selectedAmount = null, cu
   const isAmountSelected = selectedAmount !== null && selectedAmount !== undefined && selectedAmount !== '';
 
   const amountLabel = isAmountSelected
-    ? `${currencySymbol}${selectedAmount}`
+    ? `$${selectedAmount}`
     : 'Select amount';
 
-  const handleDeposit = async () => {
+  const handleDeposit = () => {
     if (!isAmountSelected || isLoading) return;
 
     setIsLoading(true);
@@ -24,35 +24,22 @@ const FooterDeposit = ({ selectedMethod = 'UPI-QRpay', selectedAmount = null, cu
         throw new Error('Please login first');
       }
 
-      // Generate reference ID
-      const referenceId = `DEP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Store the selected amount and method in localStorage for the transactions page
+      localStorage.setItem('pendingDeposit', JSON.stringify({
+        amount: selectedAmount,
+        method: selectedMethod,
+        timestamp: Date.now()
+      }));
 
-      // Make API call using walletAPI
-      const result = await walletAPI.deposit(
-        selectedAmount,
-        `Wallet Deposit via ${selectedMethod}`,
-        referenceId
-      );
-
-      if (result.success && result.data.status === 'success') {
-        setMessage(`✅ Deposit successful! New balance: ${currencySymbol}${result.data.data.balance_after}`);
-        
-        // Trigger balance refresh in parent component
-        if (onDepositSuccess) {
-          onDepositSuccess();
-        }
-        
-        // Optionally redirect to transactions page or refresh balance
-        setTimeout(() => {
-          window.location.href = '/transactions';
-        }, 2000);
-      } else {
-        setMessage(`❌ ${result.data.message || 'Deposit failed'}`);
-      }
+      setMessage('✅ Redirecting to payment...');
+      
+      // Redirect to transactions page
+      setTimeout(() => {
+        window.location.href = '/transactions';
+      }, 1000);
     } catch (error) {
       console.error('Deposit error:', error);
       setMessage(`❌ Error: ${error.message}`);
-    } finally {
       setIsLoading(false);
     }
   };

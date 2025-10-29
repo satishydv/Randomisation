@@ -135,11 +135,26 @@ class Game extends CI_Controller {
 	}
 
 	private function analyzeGame1Bets($players) {
+		// Initialize all possible sides with 0% to ensure bias works correctly
 		$totalBets = [
 			'numbers' => [],
 			'colors' => [],
 			'bigSmall' => []
 		];
+		
+		// Initialize all numbers 0-9 with 0
+		for ($i = 0; $i <= 9; $i++) {
+			$totalBets['numbers'][$i] = 0;
+		}
+		
+		// Initialize all colors with 0
+		$totalBets['colors']['green'] = 0;
+		$totalBets['colors']['red'] = 0;
+		$totalBets['colors']['violet'] = 0;
+		
+		// Initialize both big/small with 0
+		$totalBets['bigSmall']['big'] = 0;
+		$totalBets['bigSmall']['small'] = 0;
 		
 		// Collect all bets
 		foreach ($players as $player) {
@@ -147,32 +162,27 @@ class Game extends CI_Controller {
 			
 			// Number bets
 			if (isset($bets['number'])) {
-				$number = $bets['number']['value'];
-				$amount = $bets['number']['amount'];
-				if (!isset($totalBets['numbers'][$number])) {
-					$totalBets['numbers'][$number] = 0;
-				}
+				$number = (int)$bets['number']['value'];
+				$amount = (float)$bets['number']['amount'];
 				$totalBets['numbers'][$number] += $amount;
 			}
 			
-			// Color bets
+			// Color bets - normalize to lowercase
 			if (isset($bets['color'])) {
-				$color = $bets['color']['value'];
-				$amount = $bets['color']['amount'];
-				if (!isset($totalBets['colors'][$color])) {
-					$totalBets['colors'][$color] = 0;
+				$color = strtolower(trim($bets['color']['value']));
+				$amount = (float)$bets['color']['amount'];
+				if (isset($totalBets['colors'][$color])) {
+					$totalBets['colors'][$color] += $amount;
 				}
-				$totalBets['colors'][$color] += $amount;
 			}
 			
-			// Big/Small bets
+			// Big/Small bets - normalize to lowercase
 			if (isset($bets['bigSmall'])) {
-				$side = $bets['bigSmall']['value'];
-				$amount = $bets['bigSmall']['amount'];
-				if (!isset($totalBets['bigSmall'][$side])) {
-					$totalBets['bigSmall'][$side] = 0;
+				$side = strtolower(trim($bets['bigSmall']['value']));
+				$amount = (float)$bets['bigSmall']['amount'];
+				if (isset($totalBets['bigSmall'][$side])) {
+					$totalBets['bigSmall'][$side] += $amount;
 				}
-				$totalBets['bigSmall'][$side] += $amount;
 			}
 		}
 		
@@ -274,6 +284,7 @@ class Game extends CI_Controller {
 		
 		$result = [];
 		foreach ($colors as $color) {
+			$color = strtolower(trim($color)); // Normalize input
 			if (isset($numberMap[$color])) {
 				$result = array_merge($result, $numberMap[$color]);
 			}
@@ -290,6 +301,7 @@ class Game extends CI_Controller {
 		
 		$result = [];
 		foreach ($sides as $side) {
+			$side = strtolower(trim($side)); // Normalize input
 			if (isset($numberMap[$side])) {
 				$result = array_merge($result, $numberMap[$side]);
 			}
@@ -360,7 +372,7 @@ class Game extends CI_Controller {
 		}
 		
 		// Check Big bet
-		if (isset($bets['bigSmall']) && $bets['bigSmall']['value'] == 'big' && $outcomes['bigSmall'] == 'BIG') {
+		if (isset($bets['bigSmall']) && strtolower(trim($bets['bigSmall']['value'])) == 'big' && $outcomes['bigSmall'] == 'BIG') {
 			$amount = $bets['bigSmall']['amount'];
 			$winnings = $amount * 2; // 2X for big
 			$totalWinnings += $winnings;
@@ -368,7 +380,7 @@ class Game extends CI_Controller {
 		}
 		
 		// Check Small bet
-		if (isset($bets['bigSmall']) && $bets['bigSmall']['value'] == 'small' && $outcomes['bigSmall'] == 'SMALL') {
+		if (isset($bets['bigSmall']) && strtolower(trim($bets['bigSmall']['value'])) == 'small' && $outcomes['bigSmall'] == 'SMALL') {
 			$amount = $bets['bigSmall']['amount'];
 			$winnings = $amount * 2; // 2X for small
 			$totalWinnings += $winnings;
@@ -376,7 +388,7 @@ class Game extends CI_Controller {
 		}
 		
 		// Check Green bet
-		if (isset($bets['color']) && $bets['color']['value'] == 'green' && $outcomes['isGreen']) {
+		if (isset($bets['color']) && strtolower(trim($bets['color']['value'])) == 'green' && $outcomes['isGreen']) {
 			$amount = $bets['color']['amount'];
 			$winnings = $amount * 2; // 2X for green
 			$totalWinnings += $winnings;
@@ -384,7 +396,7 @@ class Game extends CI_Controller {
 		}
 		
 		// Check Red bet
-		if (isset($bets['color']) && $bets['color']['value'] == 'red' && $outcomes['isRed']) {
+		if (isset($bets['color']) && strtolower(trim($bets['color']['value'])) == 'red' && $outcomes['isRed']) {
 			$amount = $bets['color']['amount'];
 			$winnings = $amount * 2; // 2X for red
 			$totalWinnings += $winnings;
@@ -392,7 +404,7 @@ class Game extends CI_Controller {
 		}
 		
 		// Check Violet bet
-		if (isset($bets['color']) && $bets['color']['value'] == 'violet' && $outcomes['isViolet']) {
+		if (isset($bets['color']) && strtolower(trim($bets['color']['value'])) == 'violet' && $outcomes['isViolet']) {
 			$amount = $bets['color']['amount'];
 			$winnings = $amount * 4.5; // 4.5X for violet
 			$totalWinnings += $winnings;

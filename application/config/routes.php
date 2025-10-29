@@ -68,6 +68,7 @@ $route['wallet/get/(:any)'] = 'wallet/get/$1';
 $route['wallet/update/(:any)'] = 'wallet/update/$1';
 $route['wallet/delete/(:any)'] = 'wallet/delete/$1';
 $route['wallet/balance'] = 'wallet/balance';
+$route['wallet/status'] = 'wallet/status';
 $route['wallet/transactions'] = 'wallet/transactions';
 $route['wallet/deposit'] = 'wallet/deposit';
 

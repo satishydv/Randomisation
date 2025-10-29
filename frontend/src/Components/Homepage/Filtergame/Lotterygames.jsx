@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { walletAPI } from "../../../utils/api";
+import WalletBlockedModal from "../../Common/WalletBlockedModal";
 
 // --- UPDATED: Added ?tab=ID to links ---
 const allLotteryGames = [
@@ -41,21 +43,63 @@ const LotteryGames = () => {
  const [activeFilter, setActiveFilter] = useState("All");
  const [isLoading, setIsLoading] = useState(false);
  const [loadingMessage, setLoadingMessage] = useState("");
+ const [showWalletBlockedModal, setShowWalletBlockedModal] = useState(false);
+ const navigate = useNavigate();
 
  const filteredGames = useMemo(() => {
   if (activeFilter === "All") return allLotteryGames;
   return allLotteryGames.filter((g) => g.category === activeFilter);
  }, [activeFilter]);
 
- const handleGameClick = (game) => {
+ const checkWalletStatus = async () => {
+  try {
+   console.log('Checking wallet status...');
+   const response = await walletAPI.getStatus();
+   console.log('Wallet status response:', response);
+   if (response.success) {
+    console.log('Wallet is blocked:', response.data.is_blocked);
+    return response.data.is_blocked;
+   }
+   console.log('API call failed, allowing access');
+   return false;
+  } catch (error) {
+   console.error('Error checking wallet status:', error);
+   return false;
+  }
+ };
+
+ const handleGameClick = async (game) => {
   setLoadingMessage(`Loading ${game.name}...`);
   setIsLoading(true);
 
-  // Wait 1.2s before allowing navigation
-  setTimeout(() => {
+  try {
+   // Check wallet status before allowing game access
+   const isWalletBlocked = await checkWalletStatus();
+   
+   console.log('Game click - Wallet blocked result:', isWalletBlocked);
+   
+   if (isWalletBlocked) {
+    console.log('Blocking game access due to wallet status');
+    setIsLoading(false);
+    setShowWalletBlockedModal(true);
+    return;
+   }
+
+   console.log('Allowing game access - wallet not blocked');
+   // Wait 1.2s before allowing navigation
+   setTimeout(() => {
+    setIsLoading(false);
+    // routing handled in App.jsx — no navigate here
+   }, 1200);
+  } catch (error) {
+   console.error('Error in game click handler:', error);
    setIsLoading(false);
-   // routing handled in App.jsx — no navigate here
-  }, 1200);
+  }
+ };
+
+ const handleRechargeClick = () => {
+  setShowWalletBlockedModal(false);
+  navigate('/account');
  };
 
  return (
@@ -142,6 +186,13 @@ const LotteryGames = () => {
    </div>
 
    <LoadingOverlay isVisible={isLoading} message={loadingMessage} />
+   
+   {/* Wallet Blocked Modal */}
+   <WalletBlockedModal
+    isOpen={showWalletBlockedModal}
+    onClose={() => setShowWalletBlockedModal(false)}
+    onRecharge={handleRechargeClick}
+   />
   </div>
  );
 };

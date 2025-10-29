@@ -38,7 +38,7 @@ const DepositAmountSelection = ({ selectedAmount, onAmountChange }) => {
 
       {/* Manual Input Field */}
       <div className="relative flex items-center">
-        <span className="absolute left-3 text-lg text-gray-400">₹</span>
+        <span className="absolute left-3 text-lg text-gray-400">$</span>
         <input
           type="number"
           value={selectedAmount === null ? '' : selectedAmount}
